@@ -16,6 +16,6 @@ set(NAME avstream_server)
 set(SRC avstream_server)
 add_executable(${NAME} ${SRC})
 
-target_include_directories(${NAME} PRIVATE udpsock demuxer)
+target_include_directories(${NAME} PRIVATE common udpsock demuxer)
 target_link_directories(${NAME} PRIVATE udpsock demuxer)
 target_link_libraries(${NAME} PRIVATE udpsock demuxer)

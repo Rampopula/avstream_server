@@ -4,10 +4,17 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <unistd.h>
+#include "common.h"
 #include "libavutil/imgutils.h"
 #include "libavutil/samplefmt.h"
 #include "libavutil/timestamp.h"
 #include "libavformat/avformat.h"
+
+
+#include "libavcodec/avcodec.h"
+
+
 
 
 typedef int32_t(*VFRAME_Proc)(uint8_t *frame, int32_t size);

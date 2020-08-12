@@ -1,11 +1,5 @@
 #include "demuxer.h"
 
-#define TRUE                (1)
-#define FALSE               (0)
-#define LOG(fmt, args...)   do {\
-                                fprintf(stdout, "%s-%d: " fmt, __FUNCTION__, __LINE__, ##args);\
-                            } while(0)
-
 
 static AVPacket pkt;
 static AVFormatContext *fmt_ctx = NULL;
@@ -93,11 +87,15 @@ int32_t demuxer_start(void) {
         return EXIT_FAILURE;
     }
 
+	AVBitStreamFilterContext* h264bsfc = av_bitstream_filter_init("h264_mp4toannexb");
+
+
     while (av_read_frame(fmt_ctx, &pkt) >= 0) {
         AVPacket orig_pkt = pkt;
 
         if (pkt.stream_index == vstream_idx) {
             // Video packet
+			av_bitstream_filter_filter(h264bsfc, fmt_ctx->streams[vstream_idx]->codec, NULL, &pkt.data, &pkt.size, pkt.data, pkt.size, 0);
             if (callbacks.vframe_proc) {
                 callbacks.vframe_proc(pkt.data, pkt.size);
             }

@@ -21,7 +21,7 @@
 // #include "id3v2.h"
 
 
-typedef int32_t(*VFRAME_Proc)(uint8_t *frame, int32_t size);
+typedef int32_t(*VFRAME_Proc)(uint8_t *frame, int32_t size, uint8_t keyframe);
 typedef int32_t(*AFRAME_Proc)(uint8_t *frame, int32_t size);
 
 typedef struct DemuxerCallbacks_s {

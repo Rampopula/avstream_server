@@ -14,6 +14,11 @@
 	#define MP4_IN_PATH					"/home/rampopula/vscode/avstream_server/build/artem.mp4"
 	#define H264_OUT_PATH				"test.h264"
 	#define AAC_OUT_PATH				"test.aac"
+	
+	// #define DUMP_KEYFRAME
+	#ifdef DUMP_KEYFRAME
+		#define KEYFRAME_PATH			"keyframe"
+	#endif
 #endif
 
 
@@ -42,12 +47,21 @@ int32_t wrap_packet(uint8_t *packet, char *type, uint8_t chn_id, int32_t size) {
 	return EXIT_SUCCESS;
 }
 
-int32_t vframe_proc(uint8_t *frame, int32_t size) {
+int32_t vframe_proc(uint8_t *frame, int32_t size, uint8_t keyframe) {
 
 	#ifdef FILE_DEBUG
-		FILE *file = fopen("test.h264", "a+b");
-		fwrite(frame, 1, size, file);
-		fclose(file);
+		#ifdef DUMP_KEYFRAME
+			if (keyframe) {
+				FILE *file = fopen(KEYFRAME_PATH, "a+b");
+				fwrite(frame, 1, size, file);
+				fclose(file);
+				while(1);
+			}
+		#else
+			FILE *file = fopen(H264_OUT_PATH, "a+b");
+			fwrite(frame, 1, size, file);
+			fclose(file);
+		#endif
 	#else
 
 		LOG("callback ---> send video frame, size: %d b\n", size);
@@ -116,7 +130,7 @@ int32_t aframe_proc(uint8_t *frame, int32_t size) {
 	// adts_header[6] |= num_data_block & 0x03;
 
 	#ifdef FILE_DEBUG
-		FILE *file = fopen("test.aac", "a+b");
+		FILE *file = fopen(AAC_OUT_PATH, "a+b");
 		fwrite(adts_header, 1, 7, file);
 		fwrite(frame, 1, size - 7, file);
 		fclose(file);
@@ -137,6 +151,7 @@ int main(int argc, char *argv[]) {
 
     int32_t ret;
     char filepath[128];
+	int32_t udp_delay = 10;
 
     // Get input file name
     int32_t opt = getopt(argc, argv, "i:");
@@ -147,13 +162,19 @@ int main(int argc, char *argv[]) {
 		#ifdef FILE_DEBUG
 			snprintf(filepath, 128, "%s", MP4_IN_PATH);
 		#else
-			printf("Usage: avserver -i sample.mp4\n");
+			printf("Usage: avserver -i sample.mp4 -d 100\n");
 			return EXIT_FAILURE;
 		#endif
     }
+	
+	opt = getopt(argc, argv, "d:");
+	if (opt != -1 && opt == 'd') {
+		udp_delay = atoi(optarg);
+	}
+	LOG("Set UDP send delay to %d ms\n", udp_delay);
 
 	// Open udp socket
-	if (udpsock_open() != 0) {
+	if (udpsock_open(udp_delay) != 0) {
 		LOG("Can't open socket!\n");
 		return EXIT_FAILURE;
 	}

@@ -4,9 +4,9 @@
 static int32_t sock_fd = -1;
 static struct sockaddr_un svaddr, claddr;
 static int32_t udpsock_opened = FALSE;
+static int32_t udp_send_delay = 10;
 
-
-int32_t udpsock_open(void) {
+int32_t udpsock_open(int32_t send_delay) {
 
 	if (udpsock_opened) {
 		LOG("Already opened!\n");
@@ -39,6 +39,8 @@ int32_t udpsock_open(void) {
 	claddr.sun_family = AF_UNIX;
 	snprintf(claddr.sun_path, sizeof(claddr.sun_path), UDPSOCK_CLIENT_PATH);
 
+	udp_send_delay = send_delay;
+
 	udpsock_opened = TRUE;
 	return EXIT_SUCCESS;
 }
@@ -67,7 +69,7 @@ int32_t udpsock_send(uint8_t *data, int32_t size) {
 	do {
 		errno = 0;
 		ret = sendto(sock_fd, data, size, 0, (struct sockaddr*)&claddr, sizeof(struct sockaddr_un));
-		 usleep(1000 * 10);
+		 usleep(1000 * udp_send_delay);
 	} while(errno == ECONNREFUSED);
 
 	return ret;

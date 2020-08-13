@@ -17,7 +17,7 @@
 #define UDPSOCK_CLIENT_PATH		"/tmp/avudpsockcli"
 
 
-int32_t udpsock_open(void);
+int32_t udpsock_open(int32_t send_delay);
 
 int32_t udpsock_close(void);
 

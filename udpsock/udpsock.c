@@ -67,8 +67,7 @@ int32_t udpsock_send(uint8_t *data, int32_t size) {
 	do {
 		errno = 0;
 		ret = sendto(sock_fd, data, size, 0, (struct sockaddr*)&claddr, sizeof(struct sockaddr_un));
-		// LOG("%s\n", strerror(errno));
-		 usleep(1000 * 50);
+		 usleep(1000 * 10);
 	} while(errno == ECONNREFUSED);
 
 	return ret;

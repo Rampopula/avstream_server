@@ -89,7 +89,7 @@ int32_t demuxer_start(void) {
 
 	AVBitStreamFilterContext* h264bsfc = av_bitstream_filter_init("h264_mp4toannexb");
 
-
+	
     while (av_read_frame(fmt_ctx, &pkt) >= 0) {
         AVPacket orig_pkt = pkt;
 

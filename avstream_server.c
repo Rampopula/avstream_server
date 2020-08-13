@@ -1,118 +1,3 @@
-#include <stdlib.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <sys/un.h>
-#include <sys/socket.h>
-#include <unistd.h>
-#include <errno.h>
-#include <ctype.h>
-#include "common.h"
-
-
-// #define BUF_SIZE 10             /* Maximum size of messages exchanged
-//                                    between client and server */
-
-// #define SV_SOCK_PATH 		"/tmp/avudpsock"
-// #define SV_CLI_SOCK_PATH	"/tmp/avudpsockcli"	
-
-
-/* CLIENT */
-// int main(int argc, char *argv[]) {
-
-// 	struct sockaddr_un udp_client_addr;
-// 	int udp_sock_fd;
-// 	int receive_bytes = 0;
-// 	char buffer [1024];
-
-// 	udp_sock_fd = socket(AF_UNIX, SOCK_DGRAM, 0);
-// 	if(udp_sock_fd == -1) {
-// 		printf("Error creating UDP sock \n");
-// 		return -1;
-// 	}
-
-// 	if(remove(SV_CLI_SOCK_PATH) == -1 && errno != ENOENT) {
-// 		printf("SV_CLI_SOCK_PATH remove error \n");
-// 		return -1;
-// 	}
-
-// 	memset(&udp_client_addr, 0x00, sizeof(struct sockaddr_un));
-// 	udp_client_addr.sun_family = AF_UNIX;
-// 	snprintf(udp_client_addr.sun_path, sizeof(udp_client_addr.sun_path), SV_CLI_SOCK_PATH);
-
-// 	if(bind(udp_sock_fd, (struct sockaddr *)&udp_client_addr, sizeof(struct sockaddr_un) - 1) == -1) {
-// 		printf("UDP sock bind error\n");
-// 		return -1;
-// 	}
-
-// 	while(1) {
-// 		// length = sizeof(struct sockaddr_un);
-// 		receive_bytes = recvfrom(udp_sock_fd, buffer, sizeof(buffer), 0, NULL, NULL);
-
-// 		if(receive_bytes == -1) {
-// 			printf("recvfrom sock error\n");
-// 			return -1;
-// 		}
-// 		buffer[receive_bytes] = '\0';
-// 		printf("recv %d bytes: %s\n", receive_bytes, buffer);
-// 	}
-// }
-
-/* SERVER */
-// int main(int argc, char *argv[]) {
-
-// 	struct sockaddr_un udp_sock_addr, udp_client_addr;
-// 	int udp_sock_fd;
-// 	char buffer [1024];
-
-// 	udp_sock_fd = socket(AF_UNIX, SOCK_DGRAM, 0);
-// 	if(udp_sock_fd == -1) {
-// 		printf("Error creating UDP sock \n");
-// 		return -1;
-// 	}
-
-// 	if(remove(SV_SOCK_PATH) == -1 && errno != ENOENT) {
-// 		printf("SV_SOCK_PATH remove error \n");
-// 		return -1;
-// 	}
-
-// 	memset(&udp_sock_addr, 0x00, sizeof(struct sockaddr_un));
-// 	udp_sock_addr.sun_family = AF_UNIX;
-// 	strncpy(udp_sock_addr.sun_path, SV_SOCK_PATH, sizeof(udp_sock_addr.sun_path) - 1);
-
-// 	if(bind(udp_sock_fd, (struct sockaddr *)&udp_sock_addr, sizeof(struct sockaddr_un) - 1) == -1) {
-// 		printf("UDP sock bind error\n");
-// 		return -1;
-// 	}
-
-// 	memset(&udp_client_addr, 0x00, sizeof(struct sockaddr_un));
-// 	udp_client_addr.sun_family = AF_UNIX;
-// 	snprintf(udp_client_addr.sun_path, sizeof(udp_client_addr.sun_path), SV_CLI_SOCK_PATH);
-
-
-	
-// 	int ret, i = 0;
-// 	while(1) {
-// 		sprintf(buffer, "Test message from server #%d", i++);
-		
-// 		do {
-// 			errno = 0;
-// 			ret = sendto(udp_sock_fd, buffer, 0, 0, (struct sockaddr*)&udp_client_addr, sizeof(struct sockaddr_un));
-// 			usleep(1000 * 10);
-// 		} while(errno == ECONNREFUSED);
-		
-// 		if (ret < 0) {
-// 			printf("sendto error(%d): %s\n", errno, strerror(errno));
-// 		}
-
-// 		usleep(1000 * 500);
-// 	}
-// 	remove(SV_SOCK_PATH);
-// 	return 0;
-// }
-
-
-
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <getopt.h>
@@ -120,13 +5,20 @@
 #include "demuxer.h"
 
 #define PACKET_DATA_OFFFSET			(8)
-#define PACKET_BUF_SIZE				(32768)
+#define PACKET_BUF_SIZE				(1024*256)	//(32768)
 #define PACKET_TYPE_AVC				"AVC"
 #define PACKET_TYPE_AAC				"AAC"
 
+// #define FILE_DEBUG
+#ifdef FILE_DEBUG
+	#define MP4_IN_PATH					"/home/rampopula/vscode/avstream_server/build/artem.mp4"
+	#define H264_OUT_PATH				"test.h264"
+	#define AAC_OUT_PATH				"test.aac"
+#endif
+
 
 static uint8_t packet_buf[PACKET_BUF_SIZE];
-static int i = 0;
+
 
 int32_t wrap_packet(uint8_t *packet, char *type, uint8_t chn_id, int32_t size) {
 
@@ -152,56 +44,91 @@ int32_t wrap_packet(uint8_t *packet, char *type, uint8_t chn_id, int32_t size) {
 
 int32_t vframe_proc(uint8_t *frame, int32_t size) {
 
-	uint8_t chn_id = 10;
-	char *type = PACKET_TYPE_AVC;
+	#ifdef FILE_DEBUG
+		FILE *file = fopen("test.h264", "a+b");
+		fwrite(frame, 1, size, file);
+		fclose(file);
+	#else
 
-	// return 0;
+		LOG("callback ---> send video frame, size: %d b\n", size);
 
-	// // FILE *file = fopen("test.h264", "a+b");
-	// // fwrite(frame, 1, size, file);
-	// // fclose(file);
+		uint8_t chn_id = 0;
+		char *type = PACKET_TYPE_AVC;
 
-	// // return 0;
-
-
-	memcpy((void*)packet_buf + PACKET_DATA_OFFFSET, (void*)frame, size);
-	wrap_packet(packet_buf, type, chn_id, size);
-	udpsock_send(packet_buf, size + PACKET_DATA_OFFFSET);
-
-    LOG("%d) callback ---> send video frame, size: %d b\n", ++i, size);
+		memcpy((void*)packet_buf + PACKET_DATA_OFFFSET, (void*)frame, size);
+		wrap_packet(packet_buf, type, chn_id, size);
+		udpsock_send(packet_buf, size + PACKET_DATA_OFFFSET);	
+	#endif
 
     return EXIT_SUCCESS;
 }
 
 int32_t aframe_proc(uint8_t *frame, int32_t size) {
 
-	uint8_t chn_id = 10;
-	char *type = PACKET_TYPE_AAC;
-	// static int i = 0;
+	uint8_t adts_header[7];
+
+	#ifndef FILE_DEBUG
+		uint8_t chn_id = 0;
+		char *type = PACKET_TYPE_AAC;
+	#endif
 
 
 	size += 7;
 
-	uint8_t adts_header[7] = {0xFF,0xF1,0x60,0x80,0x2F,0x7F,0xFC};
+	/* Sync point over a full byte */
+	adts_header[0] = 0xFF;
 
+	/* Sync point continued over first 4 bits + static 4 bits * (ID, layer, protection)*/
+	adts_header[1] = 0xF1;
 
+	/* Object type over first 2 bits */	
+	uint8_t obj_type = 0x01;
+	adts_header[2] = obj_type << 6;
 
-	// FILE *file = fopen("test.aac", "a+b");
+	/* rate index over next 4 bits */
+	uint8_t rate_idx = 0x08;
+	adts_header[2] |= (rate_idx << 2);
 
-	// fwrite(adts, 1, 7, file);
-	// fwrite(frame, 1, size, file);
-	// fclose(file);
+	/* channels over last 2 bits */
+	uint8_t channels = 0x02;
+	adts_header[2] |= (channels & 0x4) >> 2;
 
-	// // printf("%d\n", ++i);
+	/* channels continued over next 2 bits + 4 bits at zero */
+	adts_header[3] = (channels & 0x3) << 6;
 
-	// return 0;
+	/* frame size over last 2 bits */
+	uint32_t frame_length = size ;
+	adts_header[3] |= (frame_length & 0x1800) >> 11;
 
-	memcpy((void*)packet_buf + PACKET_DATA_OFFFSET, (void*)adts, sizeof(adts));
-	memcpy((void*)packet_buf + PACKET_DATA_OFFFSET + 7, (void*)frame, size);
-	wrap_packet(packet_buf, type, chn_id, size);
-	udpsock_send(packet_buf, size + PACKET_DATA_OFFFSET);
+	/* frame size continued over full byte */
+	adts_header[4] = (frame_length & 0x1FF8) >> 3;
 
-    LOG("%d) callback ---> send audio frame, size: %d b\n", ++i, size);
+	/* frame size continued first 3 bits */
+	adts_header[5] = (frame_length & 0x7) << 5;
+
+	/* buffer fullness (0x7FF for VBR) over 5 last bits*/
+	adts_header[5] |= 0x1F;
+
+	/* buffer fullness (0x7FF for VBR) continued over 6 first bits + 2 zeros * number of raw data blocks */
+	adts_header[6] = 0xFC;//one raw data blocks.
+
+	//Set raw Data blocks.
+	// adts_header[6] |= num_data_block & 0x03;
+
+	#ifdef FILE_DEBUG
+		FILE *file = fopen("test.aac", "a+b");
+		fwrite(adts_header, 1, 7, file);
+		fwrite(frame, 1, size - 7, file);
+		fclose(file);
+	#else
+		LOG("callback ---> send audio frame, size: %d b\n", size);
+
+		memcpy((void*)packet_buf + PACKET_DATA_OFFFSET, (void*)adts_header, sizeof(adts_header));
+		memcpy((void*)packet_buf + PACKET_DATA_OFFFSET + 7, (void*)frame, size - 7);
+		wrap_packet(packet_buf, type, chn_id, size);
+		udpsock_send(packet_buf, size + PACKET_DATA_OFFFSET);		
+	#endif
+
     return EXIT_SUCCESS;
 }
 
@@ -217,9 +144,12 @@ int main(int argc, char *argv[]) {
         snprintf(filepath, 32, "%s", optarg);
 	}
     else {
-        printf("Usage: avserver -i sample.mp4\n");
-		return EXIT_FAILURE;
-		// snprintf(filepath, 128, "%s", "/home/rampopula/vscode/avstream_server/build/vid.mp4");
+		#ifdef FILE_DEBUG
+			snprintf(filepath, 128, "%s", MP4_IN_PATH);
+		#else
+			printf("Usage: avserver -i sample.mp4\n");
+			return EXIT_FAILURE;
+		#endif
     }
 
 	// Open udp socket

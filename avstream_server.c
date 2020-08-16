@@ -1,5 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
+
+#include <sys/types.h>
+#include <sys/stat.h>
+ #include <fcntl.h> 
+
 #include <getopt.h>
 #include "udpsock.h"
 #include "demuxer.h"
@@ -11,7 +16,7 @@
 
 // #define FILE_DEBUG
 #ifdef FILE_DEBUG
-	#define MP4_IN_PATH					"/home/rampopula/vscode/avstream_server/build/artem.mp4"
+	#define MP4_IN_PATH					"/home/rampopula/vscode/avstream_server/build/demo.mp4"
 	#define H264_OUT_PATH				"test.h264"
 	#define AAC_OUT_PATH				"test.aac"
 	
@@ -55,6 +60,7 @@ int32_t vframe_proc(uint8_t *frame, int32_t size, uint8_t keyframe) {
 				FILE *file = fopen(KEYFRAME_PATH, "a+b");
 				fwrite(frame, 1, size, file);
 				fclose(file);
+                LOG("keyframe extracted: %s\n", KEYFRAME_PATH);
 				while(1);
 			}
 		#else
@@ -85,7 +91,6 @@ int32_t aframe_proc(uint8_t *frame, int32_t size) {
 		uint8_t chn_id = 0;
 		char *type = PACKET_TYPE_AAC;
 	#endif
-
 
 	size += 7;
 
@@ -143,6 +148,187 @@ int32_t aframe_proc(uint8_t *frame, int32_t size) {
 		udpsock_send(packet_buf, size + PACKET_DATA_OFFFSET);		
 	#endif
 
+    return EXIT_SUCCESS;
+}
+
+
+#define FF_JPEG_MAX_SIZE    (64 * 1024)     // 64 KB
+
+typedef uint8_t*    keyframe_t;
+
+keyframe_t open_keyframe(char *path, int32_t *size) {
+
+    FILE *file = NULL;
+    keyframe_t keyframe = NULL;
+
+    // Open file
+    file = fopen(path, "r+b");
+    if (file == NULL) {
+        LOG("Null pointer!\n");
+        return NULL;
+    }
+
+    // Get file size
+    fseek(file, 0L, SEEK_END);
+    *size = ftell(file);
+    fseek(file, 0L, SEEK_SET);
+
+    // Allocate memory
+    keyframe = malloc(*size);
+    if (keyframe == NULL) {
+        LOG("Null pointer!\n");
+        fclose(file);
+        return NULL;
+    }
+
+    // Read keyframe
+    if (fread(keyframe, 1, *size, file) != *size) {
+        LOG("Read error!\n");
+        fclose(file);
+        free(keyframe);
+        return NULL;
+    }
+
+    return keyframe;
+}
+
+int32_t destroy_keyframe(keyframe_t keyframe) {
+
+    if (keyframe != NULL) {
+        free(keyframe);
+    }
+
+    return EXIT_SUCCESS;
+}
+
+
+typedef struct ImageJpeg_s {
+    uint32_t width;          // if width & height > 0 then resulting image will be rescaled
+    uint32_t height;
+    uint32_t quality;        // quality factor from 2 to 31 (worst)
+    int32_t size;
+    uint8_t *data;
+} ImageJpeg_t;
+
+static uint8_t jpeg[FF_JPEG_MAX_SIZE];
+
+int32_t ffmpeg_keyframe2jpeg(uint8_t *in_frame, int32_t in_size, ImageJpeg_t *jpeg_out, int32_t quiet_flag) {
+
+    int ret;
+    char pipe_name[32];
+    char rescale[32];
+    char quality[16];
+    char command[128];
+    FILE *ffmpeg = NULL;
+    FILE *pipe = NULL;
+    
+    if (jpeg_out == NULL) {
+        LOG("output buffer is null!\n");
+        return EXIT_FAILURE;
+    }
+
+    // Clear output buffers
+    jpeg_out->size = 0;
+    jpeg_out->data = NULL;
+
+    // Define pipe name
+    snprintf(pipe_name, 32, "/tmp/ffpipe");
+
+    // Create pipe
+    remove(pipe_name);
+    ret = mkfifo(pipe_name, O_RDWR | O_CREAT | 0666);
+    if (ret == -1) {
+        LOG("mkfifo error: %s\n", strerror(errno));
+        return EXIT_FAILURE;
+    }
+
+    // Open ffmpeg
+    if (jpeg_out->width && jpeg_out->height) {
+        LOG("JPEG rescale: %d x %d\n", jpeg_out->width, jpeg_out->height);
+        snprintf(rescale, 32, "-vf scale=%d:%d", jpeg_out->width, jpeg_out->height);
+    }
+    else {
+        snprintf(rescale, 32, " ");
+    }
+
+    if (jpeg_out->quality >= 2 && jpeg_out->quality <= 31) {
+        LOG("JPEG quality factor: %d\n", jpeg_out->quality);
+        snprintf(quality, 16, "-q:v %d", jpeg_out->quality);
+    }
+    else {
+        snprintf(rescale, 16, " ");
+    }
+    
+    snprintf(command, 128, "/usr/local/bin/ffmpeg -i pipe:0 %s -f image2 %s %s pipe: > %s", quiet_flag ? "-loglevel quiet" : "", rescale, quality, pipe_name);
+    ffmpeg = popen(command, "w");
+    if (ffmpeg == NULL) {
+        LOG("popen() error: %s\n", strerror(errno));
+        goto exit;
+    }
+
+    // Write keyframe to ffmpeg
+    if (fwrite(in_frame, sizeof(uint8_t), in_size, ffmpeg) != in_size) {
+        LOG("fwrite() error: %s\n", strerror(errno));
+        goto exit;
+    }
+    fflush(ffmpeg);
+
+    // Open pipe
+    pipe = fopen(pipe_name, "r");
+    if (pipe == NULL) {
+        LOG("fopen() error: %s\n", strerror(errno));
+        goto exit;
+    }
+
+    // Release ffmpeg pipe
+    fclose(ffmpeg);
+    ffmpeg = NULL;
+
+    // Read result from pipe
+    while(fread(jpeg + jpeg_out->size, sizeof(uint8_t), 1, pipe) > 0) {
+        jpeg_out->size++;
+    }
+    jpeg_out->data = jpeg;
+
+    fclose(pipe);
+    return EXIT_SUCCESS;
+
+exit:
+    if (ffmpeg) fclose(ffmpeg);
+    if (pipe) fclose(pipe);
+    remove(pipe_name);
+    return EXIT_FAILURE;
+}
+
+int32_t jpeg_from_keyframe() {
+
+    // Open keyframe
+    int32_t keyframe_size = 0;
+    keyframe_t keyframe = open_keyframe("/home/rampopula/vscode/avstream_server/build/keyframe_annexb", &keyframe_size);
+    if (keyframe == NULL) {
+        return EXIT_FAILURE;
+    }
+
+    ImageJpeg_t jpeg;
+    jpeg.size = 0;
+    jpeg.width = 256;
+    jpeg.height = 144;
+    jpeg.quality = 15;
+    jpeg.data = NULL;
+
+    if (ffmpeg_keyframe2jpeg(keyframe, keyframe_size, &jpeg, 1) != 0) {
+        LOG("ffmpeg_keyframe2jpeg() failed!\n");
+        return EXIT_FAILURE;
+    }
+    LOG("ffmpeg_keyframe2jpeg() success! jpeg size: %d\n", jpeg.size);
+
+    // write jpeg
+    // remove("output.jpeg");
+    FILE *jpg = fopen("output.jpeg", "a+b");
+    fwrite(jpeg.data, 1, jpeg.size, jpg);
+	fclose(jpg);
+
+    destroy_keyframe(keyframe);
     return EXIT_SUCCESS;
 }
 

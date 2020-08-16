@@ -13,14 +13,6 @@
 #include "libavcodec/avcodec.h"
 
 
-// #include "libavcodec/get_bits.h"
-// #include "libavcodec/put_bits.h"
-// #include "libavcodec/mpeg4audio.h"
-// #include "libavutil/opt.h"
-// #include "apetag.h"
-// #include "id3v2.h"
-
-
 typedef int32_t(*VFRAME_Proc)(uint8_t *frame, int32_t size, uint8_t keyframe);
 typedef int32_t(*AFRAME_Proc)(uint8_t *frame, int32_t size);
 
